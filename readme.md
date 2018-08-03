@@ -1,3 +1,8 @@
-# 使用python实现一条基于基于POS(权益证明的链)
+### Python POS Blockchain
+
+In this project, we will impletement a pos (proof of stake) blockchain use python3.
+
+
+
 
 
