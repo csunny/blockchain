@@ -31,17 +31,17 @@ async def handle_conn(reader, writer):
     validators[address] = balance
     print(validators)
 
+    # asyncio.ensure_future(run())
     await run()
-    await candidate(candidate_blocks)
-    # await pick_winner(announcements)
+
     while True:
         writer.write(b"Enter a new BPM:")
-        await annouce_winner(announcements, writer) 
+
         await writer.drain()
         bpm_code = await reader.read(100)
         print("----", bpm_code)
         try:
-            bpm = int(bpm_code.encode())
+            bpm = int(bpm_code.decode())
         except Exception as e:
             print(e)
             del validators[address]
@@ -54,66 +54,63 @@ async def handle_conn(reader, writer):
             await candidate_blocks.put(new_block)
         
         writer.write(b"Enter a new BPM:\n")
-        await annnounce_blockchain(reader, writer)
+        try:
+            winner = await announcements.get()
+            writer.write(winner.encode())
+            writer.write(b'\n')
+            await writer.drain()
+        except asyncio.QueueEmpty:
+            pass
+        except IOError:
+            pass
+
+        try:
+            bc = json.dumps(Blockchain)
+            writer.write(bc.encode())
+            await writer.drain()
+        except IOError:
+            pass
 
 async def pick_winner(announcements):
     """
     选择记账人
     """
+    while True:
+        await asyncio.sleep(1)
+        lottery_pool = []  #
 
-    lottery_pool = []  #
-
-    temp = tempblocks
-    
-    if temp:
-        for block in temp:
-            if block["Validator"] not in lottery_pool:
-                set_validator = validators
-                k = set_validator.get(block["Validator"])
-                # 根据持有的token数量构建票池, 持有的token数量与出现次数成正比
-                if k:
-                    for _ in range(k):
-                        lottery_pool.append(block["Validator"])
-        lottery_winner = choice(lottery_pool)
-        print(lottery_winner)
-        for block in temp:
-            if block["Validator"] == lottery_winner:
-                Blockchain.append(block)
-            
-            # write msg in announcement queue
-            msg = '\n {0} 赢得了记账权利'.format(lottery_winner)
-            await announcements.put(msg)
-            break
-    tempblocks.clear()
-
-
-async def annouce_winner(announcements, writer):
-    try:
-        msg = await announcements.get()
-        writer.write(msg.encode())
-        writer.write(b"\n")
-        await writer.drain()
-    except asyncio.QueueEmpty:
-        pass
+        temp = tempblocks
         
+        if temp:
+            for block in temp:
+                if block["Validator"] not in lottery_pool:
+                    set_validator = validators
+                    k = set_validator.get(block["Validator"])
+                    # 根据持有的token数量构建票池, 持有的token数量与出现次数成正比
+                    if k:
+                        for _ in range(k):
+                            lottery_pool.append(block["Validator"])
+            lottery_winner = choice(lottery_pool)
+            print(lottery_winner)
+            for block in temp:
+                if block["Validator"] == lottery_winner:
+                    Blockchain.append(block)
+                
+                # write msg in announcement queue
+                msg = '\n {0} 赢得了记账权利'.format(lottery_winner)
+                await announcements.put(msg)
+                break
+        tempblocks.clear()
 
-async def annnounce_blockchain(reader, writer):
-    
-    output = json.dumps(Blockchain)
-    try:
-        writer.write(output.encode())
-        writer.write(b'\n')
-        await writer.drain()
-    except IOError:
-        pass
 
 async def candidate(candidate_blocks):
-
-    try:
-        candi = await candidate_blocks.get()
-    except asyncio.QueueEmpty:
-        pass
-    tempblocks.append(candi)
+    while True:
+        try:
+            candi = await candidate_blocks.get()
+        except asyncio.QueueEmpty:
+            await asyncio.sleep(1)
+            pass
+        tempblocks.append(candi)
     
 async def run():
     t = str(datetime.now())
@@ -128,3 +125,6 @@ async def run():
     genesis_block["Hash"] = caculate_hash(genesis_block)
     Blockchain.append(genesis_block)
     print(Blockchain)
+
+    asyncio.ensure_future(candidate(candidate_blocks))
+    asyncio.ensure_future(pick_winner(announcements))
