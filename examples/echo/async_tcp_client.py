@@ -17,4 +17,10 @@ async def echo_tcp_client(message, loop):
 message = "Hello World!"
 loop = asyncio.get_event_loop()
 loop.run_until_complete(echo_tcp_client(message, loop))
+
+try:
+    loop.run_forever()
+except KeyboardInterrupt:
+    pass
+    
 loop.close()
